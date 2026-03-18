@@ -46,13 +46,6 @@
 
         <!-- Buttons -->
         <div class="flex items-center justify-between mt-6">
-            <form method="POST" action="{{ route('otp.resend') }}" class="inline">
-                @csrf
-                <button type="submit" class="text-sm text-indigo-600 hover:text-indigo-900 underline">
-                    {{ __('¿No recibiste el código? Reenviar') }}
-                </button>
-            </form>
-
             <x-primary-button>
                 {{ __('Verificar') }}
             </x-primary-button>
@@ -65,6 +58,16 @@
             </a>
         </div>
     </form>
+
+    <!-- Formulario de reenvío (fuera del formulario principal) -->
+    <div class="text-center mt-6">
+        <form method="POST" action="{{ route('otp.resend') }}" class="inline">
+            @csrf
+            <button type="submit" class="text-sm text-indigo-600 hover:text-indigo-900 underline">
+                {{ __('¿No recibiste el código? Reenviar') }}
+            </button>
+        </form>
+    </div>
 
     <!-- Timer (opcional - para mejor UX) -->
     <script>
