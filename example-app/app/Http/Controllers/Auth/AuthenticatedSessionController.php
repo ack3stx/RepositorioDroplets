@@ -66,13 +66,18 @@ class AuthenticatedSessionController extends Controller
             // Generar OTP
             $otp = random_int(100000, 999999);
             
-            // Guardar en cache (válido por 10 minutos)
+            // Generar token temporal para la verificación OTP (válido por 5 minutos)
+            $otpToken = \Illuminate\Support\Str::random(60);
             $cacheKey = 'otp_login_' . $request->email;
             Cache::put($cacheKey, [
                 'otp' => $otp,
                 'user_id' => $user->id,
-                'phone' => $user->phone ?? null
-            ], now()->addMinutes(10));
+                'phone' => $user->phone ?? null,
+                'token' => $otpToken
+            ], now()->addMinutes(5));
+
+            // También guardar el token en cache para validación rápida
+            Cache::put('otp_token_' . $otpToken, $request->email, now()->addMinutes(5));
 
             // Enviar OTP por Twilio SMS
             if ($user->phone) {
@@ -86,10 +91,10 @@ class AuthenticatedSessionController extends Controller
                 ])->onlyInput('email');
             }
 
-            // Guardar email en sesión para verificación posterior
+            // Guardar email en sesión como respaldo
             $request->session()->put('otp_email', $request->email);
 
-            return redirect()->route('otp.verify.show')->with('success', 'OTP enviado a tu teléfono.');
+            return redirect()->route('otp.verify.show', ['token' => $otpToken])->with('success', 'OTP enviado a tu teléfono.');
 
         } catch (\Exception $e) {
             Log::error('Error al enviar OTP: ' . $e->getMessage());
@@ -102,14 +107,35 @@ class AuthenticatedSessionController extends Controller
     /**
      * Mostrar vista para verificar OTP
      */
-    public function showOtpVerify(): View
+    public function showOtpVerify(Request $request): View
     {
-        if (!session('otp_email')) {
+        $token = $request->query('token');
+        $sessionEmail = session('otp_email');
+        $email = null;
+
+        // Intentar obtener email desde el token primero
+        if ($token) {
+            $email = Cache::get('otp_token_' . $token);
+        }
+
+        // Si no hay email desde token, usar el de la sesión
+        if (!$email && $sessionEmail) {
+            $email = $sessionEmail;
+        }
+
+        // Si no hay email, redirigir a login
+        if (!$email) {
             return redirect()->route('login');
         }
 
+        // Si hay token, actualizar la sesión para mantenerla fresca
+        if ($token) {
+            $request->session()->put('otp_email', $email);
+        }
+
         return view('auth.otp-verify', [
-            'email' => session('otp_email')
+            'email' => $email,
+            'token' => $token
         ]);
     }
 
@@ -212,7 +238,7 @@ class AuthenticatedSessionController extends Controller
                 'otp' => $newOtp,
                 'user_id' => $storedData['user_id'],
                 'phone' => $storedData['phone'] ?? null
-            ], now()->addMinutes(10));
+            ], now()->addMinutes(5));
 
             // Obtener usuario para enviar SMS
             $user = \App\Models\User::find($storedData['user_id']);

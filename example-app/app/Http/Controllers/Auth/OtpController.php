@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\Auth\SendOtpRequest;
+use App\Http\Requests\Auth\VerifyOtpRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Twilio\Rest\Client;
@@ -12,20 +13,25 @@ class OtpController extends Controller
 {
     /**
      * Generar y enviar OTP vía Twilio
+     * Requiere validación de captcha
      */
-    public function sendOtp(Request $request)
+    public function sendOtp(SendOtpRequest $request)
     {
-        $request->validate([
-            'phone' => 'required|string|min:10',
-        ]);
+        // Verificar reCAPTCHA antes de enviar el OTP
+        if (!$request->verifyRecaptcha()) {
+            return response()->json([
+                'message' => 'Verificación de reCAPTCHA fallida',
+                'success' => false
+            ], 422);
+        }
 
         try {
             // Generar un código OTP aleatorio (6 dígitos)
             $otp = random_int(100000, 999999);
             
-            // Almacenar el OTP en cache por 10 minutos
+            // Almacenar el OTP en cache por 5 minutos
             $cacheKey = 'otp_' . $request->phone;
-            Cache::put($cacheKey, $otp, now()->addMinutes(10));
+            Cache::put($cacheKey, $otp, now()->addMinutes(5));
 
             // Enviar OTP vía Twilio
             $this->sendViaTwilio($request->phone, $otp);
@@ -46,13 +52,17 @@ class OtpController extends Controller
 
     /**
      * Verificar el OTP ingresado por el usuario
+     * Requiere validación de captcha
      */
-    public function verifyOtp(Request $request)
+    public function verifyOtp(VerifyOtpRequest $request)
     {
-        $request->validate([
-            'phone' => 'required|string|min:10',
-            'otp' => 'required|numeric|digits:6',
-        ]);
+        // Verificar reCAPTCHA antes de verificar el OTP
+        if (!$request->verifyRecaptcha()) {
+            return response()->json([
+                'message' => 'Verificación de reCAPTCHA fallida',
+                'success' => false
+            ], 422);
+        }
 
         try {
             $cacheKey = 'otp_' . $request->phone;
