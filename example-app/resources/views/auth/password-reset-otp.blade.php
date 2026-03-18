@@ -39,9 +39,6 @@
         <!-- reCAPTCHA (mostrar a partir del 5º intento) -->
         @if ($shouldShowCaptcha ?? false)
             <div class="mt-4">
-                <p class="text-sm text-gray-600 mb-3">
-                    {{ __('Demasiados intentos. Por favor completa el captcha.') }}
-                </p>
                 <div class="g-recaptcha" data-sitekey="{{ config('services.recaptcha.site_key') }}"></div>
                 <x-input-error :messages="$errors->get('captcha')" class="mt-2" />
                 <x-input-error :messages="$errors->get('g-recaptcha-response')" class="mt-2" />

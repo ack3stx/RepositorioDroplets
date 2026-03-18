@@ -88,16 +88,15 @@ class PasswordResetLinkController extends Controller
         }
 
         $email = session('reset_email');
-        $throttleKey = 'otp_verify_' . $email;
+        $attemptsKey = 'otp_attempts_' . $email;
         
-        // Contar intentos fallidos
-        $attempts = \Illuminate\Support\Facades\RateLimiter::attempts($throttleKey);
-        $shouldShowCaptcha = $attempts >= 4; // A partir del 5º intento (0-4 = 5 intentos)
+        // Obtener el número de intentos fallidos
+        $attempts = session($attemptsKey, 0);
+        $shouldShowCaptcha = $attempts >= 4; // Mostrar captcha a partir del 5º intento
 
         return view('auth.password-reset-otp', [
             'email' => $email,
-            'shouldShowCaptcha' => $shouldShowCaptcha,
-            'attempts' => $attempts
+            'shouldShowCaptcha' => $shouldShowCaptcha
         ]);
     }
 
@@ -122,32 +121,24 @@ class PasswordResetLinkController extends Controller
             ]);
         }
 
-        $throttleKey = 'otp_verify_' . $email;
-        $attempts = \Illuminate\Support\Facades\RateLimiter::attempts($throttleKey);
+        $attemptsKey = 'otp_attempts_' . $email;
+        $attempts = session($attemptsKey, 0);
         
-        // Verificar si ha alcanzado el límite de intentos (5 intentos fallidos)
-        if ($attempts >= 5) {
-            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
-            
-            // Si hay muchos intentos, requerir captcha
-            if ($attempts >= 4) {
-                if (!$request->input('g-recaptcha-response')) {
-                    $shouldShowCaptcha = true;
-                    return back()->withErrors([
-                        'captcha' => 'Debes completar el captcha para continuar.',
-                    ])->with('shouldShowCaptcha', $shouldShowCaptcha)->onlyInput('otp');
-                }
+        // Si hay 4 o más intentos fallidos, requerir captcha
+        if ($attempts >= 4) {
+            if (!$request->input('g-recaptcha-response')) {
+                return back()->withErrors([
+                    'captcha' => 'Debes completar el captcha para continuar.',
+                ])->onlyInput('otp');
+            }
 
-                // Verificar captcha
-                if (!$this->verifyRecaptcha($request)) {
-                    \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 1);
-                    $shouldShowCaptcha = true;
-                    return back()->withErrors([
-                        'captcha' => 'Verificación de reCAPTCHA fallida.',
-                    ])->with('shouldShowCaptcha', $shouldShowCaptcha)->onlyInput('otp');
-                }
-
-                // Si captcha es correcto, permitir un intento más
+            // Verificar captcha
+            if (!$this->verifyRecaptcha($request)) {
+                // Incrementar intentos por captcha fallido
+                session([$attemptsKey => $attempts + 1]);
+                return back()->withErrors([
+                    'captcha' => 'Verificación de reCAPTCHA fallida.',
+                ])->onlyInput('otp');
             }
         }
 
@@ -164,15 +155,8 @@ class PasswordResetLinkController extends Controller
 
             // Verificar que el OTP sea correcto
             if ($storedData['otp'] != $request->otp) {
-                \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 1);
-                $attempts = \Illuminate\Support\Facades\RateLimiter::attempts($throttleKey);
-                
-                if ($attempts >= 5) {
-                    $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
-                    return back()->withErrors([
-                        'otp' => "Demasiados intentos. Intenta en {$seconds} segundos.",
-                    ])->onlyInput('otp');
-                }
+                // Incrementar contador de intentos fallidos
+                session([$attemptsKey => $attempts + 1]);
                 
                 return back()->withErrors([
                     'otp' => 'OTP incorrecto. Intenta de nuevo.',
@@ -180,7 +164,7 @@ class PasswordResetLinkController extends Controller
             }
 
             // OTP válido - Limpiar intentos
-            \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+            session()->forget($attemptsKey);
 
             // Mostrar formulario de nueva contraseña
             $resetToken = \Illuminate\Support\Str::random(60);
