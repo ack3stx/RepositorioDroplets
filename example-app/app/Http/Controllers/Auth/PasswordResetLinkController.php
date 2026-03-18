@@ -127,18 +127,18 @@ class PasswordResetLinkController extends Controller
         // Si hay 4 o más intentos fallidos, requerir captcha
         if ($attempts >= 4) {
             if (!$request->input('g-recaptcha-response')) {
-                return back()->withErrors([
-                    'captcha' => 'Debes completar el captcha para continuar.',
-                ])->onlyInput('otp');
+                return redirect()->route('password.otp.show')
+                    ->withErrors(['captcha' => 'Debes completar el captcha para continuar.'])
+                    ->onlyInput('otp');
             }
 
             // Verificar captcha
             if (!$this->verifyRecaptcha($request)) {
                 // Incrementar intentos por captcha fallido
-                session([$attemptsKey => $attempts + 1]);
-                return back()->withErrors([
-                    'captcha' => 'Verificación de reCAPTCHA fallida.',
-                ])->onlyInput('otp');
+                $request->session()->put($attemptsKey, $attempts + 1);
+                return redirect()->route('password.otp.show')
+                    ->withErrors(['captcha' => 'Verificación de reCAPTCHA fallida.'])
+                    ->onlyInput('otp');
             }
         }
 
@@ -156,11 +156,12 @@ class PasswordResetLinkController extends Controller
             // Verificar que el OTP sea correcto
             if ($storedData['otp'] != $request->otp) {
                 // Incrementar contador de intentos fallidos
-                session([$attemptsKey => $attempts + 1]);
+                $newAttempts = $attempts + 1;
+                $request->session()->put($attemptsKey, $newAttempts);
                 
-                return back()->withErrors([
-                    'otp' => 'OTP incorrecto. Intenta de nuevo.',
-                ])->onlyInput('otp');
+                return redirect()->route('password.otp.show')
+                    ->withErrors(['otp' => 'OTP incorrecto. Intenta de nuevo.'])
+                    ->onlyInput('otp');
             }
 
             // OTP válido - Limpiar intentos
