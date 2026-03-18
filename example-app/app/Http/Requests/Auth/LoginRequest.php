@@ -28,8 +28,21 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:6'],
             'g-recaptcha-response' => ['required', 'string'],
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     */
+    public function messages(): array
+    {
+        return [
+            'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
+            'email.required' => 'El email es requerido.',
+            'email.email' => 'El email debe ser válido.',
+            'password.required' => 'La contraseña es requerida.',
         ];
     }
 
