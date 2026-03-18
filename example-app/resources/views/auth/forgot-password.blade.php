@@ -1,6 +1,6 @@
 <x-guest-layout>
     <div class="mb-4 text-sm text-gray-600">
-        {{ __('Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one.') }}
+        {{ __('¿Olvidaste tu contraseña? Ingresa tu email y enviaremos un código OTP a tu teléfono registrado.') }}
     </div>
 
     <!-- Session Status -->
@@ -16,10 +16,19 @@
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
+        <!-- reCAPTCHA -->
+        <div class="mt-4">
+            <div class="g-recaptcha" data-sitekey="{{ config('services.recaptcha.site_key') }}"></div>
+            <x-input-error :messages="$errors->get('g-recaptcha-response')" class="mt-2" />
+        </div>
+
         <div class="flex items-center justify-end mt-4">
             <x-primary-button>
-                {{ __('Email Password Reset Link') }}
+                {{ __('Enviar Código OTP') }}
             </x-primary-button>
         </div>
     </form>
+
+    <!-- Script reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </x-guest-layout>
